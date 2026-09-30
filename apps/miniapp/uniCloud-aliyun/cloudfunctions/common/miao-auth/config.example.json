@@ -1,0 +1,5 @@
+{
+  "appId": "填写微信小程序 AppID",
+  "appSecret": "填写微信小程序 AppSecret，仅保留在云端",
+  "tokenSecret": "使用至少32字节的随机密钥替换此内容"
+}

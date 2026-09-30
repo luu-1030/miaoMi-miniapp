@@ -1,0 +1,269 @@
+<template>
+  <view class="app-shell">
+    <view class="topbar">
+      <view class="brand"><text class="brand-mark">m.</text><view><text class="brand-name">小咪小咪</text><text class="brand-caption">MIAOMI · 一起好好生活</text></view></view>
+      <view class="top-actions"><text v-if="state.initialized" class="coin-pill">◉ {{ state.coins }}</text><button v-if="state.initialized" class="settings-button" aria-label="打开设置" @click="tab = 'settings'">⚙</button></view>
+    </view>
+    <scroll-view class="page-scroll" scroll-y="true" :scroll-top="scrollTop">
+      <view class="page-inner">
+        <view v-if="!state.initialized" class="onboarding">
+          <text class="eyebrow">A LITTLE CAT, A LOT OF LOVE</text><text class="page-title">让日子，多一点毛茸茸。</text><text class="page-description">从一声轻轻的喵开始，认识你的第一位小家人。</text>
+          <CatRoom :breed="newBreed" />
+          <view class="card adoption-card">
+            <text class="section-title">你好呀，未来的家人</text><text class="muted">它的小脾气，留给一起度过的日子慢慢发现。</text>
+            <view class="form-row"><text class="field-label">怎么称呼你</text><input v-model="playerName" class="text-input" maxlength="20" placeholder="小咪的朋友" /></view>
+            <view class="form-row"><text class="field-label">小咪的名字</text><input v-model="newCatName" class="text-input" maxlength="12" placeholder="小橘" /></view>
+            <text class="field-label">选一份眼缘</text><view class="breed-grid"><button v-for="item in BREEDS" :key="item.id" class="breed-option" :class="{ selected: newBreed == item.id }" @click="newBreed = item.id"><view class="coat-dot" :style="{ backgroundColor: item.color }"/><text>{{ item.name }}</text></button></view><text class="help-text">{{ selectedBreedDescription }}</text>
+            <view class="choice-row"><button class="choice" :class="{ selected: newGender == 'female' }" @click="newGender = 'female'">♀ 猫妹妹</button><button class="choice" :class="{ selected: newGender == 'male' }" @click="newGender = 'male'">♂ 猫弟弟</button></view>
+            <text class="field-label">你的生活小职业</text><view class="choice-row"><button v-for="job in PROFESSIONS" :key="job.id" class="choice" :class="{ selected: newProfession == job.id }" @click="newProfession = job.id">{{ job.name }}</button></view><text class="help-text">先选一份喜欢的小工作，以后随时可以尝试其他职业。</text>
+            <text v-if="storageWarning" class="warning-text">{{ storageWarning }}</text><button class="primary" @click="adoptFirst">接小咪回家</button><text class="footnote">第一只小咪免费 · 随机 180–240 枚生活金币</text>
+          </view>
+        </view>
+        <template v-else>
+          <view v-if="storageWarning" class="notice warning-notice"><text>{{ storageWarning }}</text></view>
+          <view v-if="reminderMessage" class="notice reminder-notice"><view><text class="notice-title">小咪也在照顾你</text><text>{{ reminderMessage }}</text></view><button class="dismiss-button" aria-label="关闭提醒" @click="reminderMessage = ''">×</button></view>
+          <view v-if="tab != 'home' && (state.pendingEvent || state.pendingEncounter)" class="notice"><text>家里有一段小小的新故事。</text><button class="text-button" @click="switchTab('home')">去看看 →</button></view>
+          <view v-show="tab == 'home'">
+            <view class="page-heading"><view><text class="eyebrow">OUR LITTLE HOME</text><text class="page-title">今天，也有小咪陪你。</text></view><text class="date-tag">{{ todayLabel }}</text></view><text class="page-description">{{ state.playerName }}，欢迎回家。慢一点也没关系。</text>
+            <scroll-view class="cat-list-scroll" scroll-x="true"><view class="cat-list"><button v-for="cat in state.cats" :key="cat.id" class="cat-chip" :class="{ active: cat.id == state.activeCatId }" @click="selectCat(cat.id)"><view class="tiny-coat" :style="{ backgroundColor: breedColor(cat.breed) }"/><text>{{ cat.name }}</text><text class="chip-status">{{ cat.status == 'away' ? '出门了' : '在家' }}</text></button><button v-if="state.cats.length < MAX_CATS" class="cat-chip add-cat" @click="openShopAdoption">＋ 新家人</button></view></scroll-view>
+            <template v-if="activeCat">
+              <CatRoom :breed="activeCat.breed" :pose="catPose" :outfit="activeCat.outfit || ''" :away="activeCat.status == 'away'" @pet="care('pet')" /><view class="speech-bubble"><text>{{ catMessage }}</text></view>
+              <view class="card cat-details"><view class="section-heading"><view><text class="section-title">{{ activeCat.name }}</text><text class="muted">{{ breedName(activeCat.breed) }} · {{ genderName(activeCat.gender) }} · 相伴第 {{ daysTogether }} 天</text></view><text class="soft-tag">{{ affectionText }}</text></view><view class="stats-grid"><view v-for="stat in statDefinitions" :key="stat.id" class="stat"><view class="stat-caption"><text>{{ stat.label }}</text><text>{{ Math.round(activeCat[stat.id]) }}</text></view><view class="stat-track"><view class="stat-fill" :style="{ width: activeCat[stat.id] + '%', backgroundColor: activeCat[stat.id] < 20 ? '#c28a77' : stat.color }"/></view></view></view><view v-if="activeCat.status == 'away'" class="return-panel"><text>小咪出去散散心了。带上熟悉的小毯子，把它接回温暖的家。</text><button class="primary" @click="retrieve">接小咪回家</button></view><view v-else-if="activeCat.affection < 20" class="inline-hint">小咪最近常趴在门边。喂饱、添水，再陪它待一会儿吧。</view></view>
+              <view class="card"><view class="section-heading"><text class="section-title">把喜欢，放进小事里</text><text class="muted">猫粮 {{ state.inventory.food }} · 鱼干 {{ state.inventory.treat }}</text></view><view class="care-grid"><button v-for="action in CARE_ACTIONS" :key="action.id" class="care-button" :disabled="activeCat.status == 'away' || careRemaining(action.id) > 0" @click="care(action.id)"><text class="care-symbol">{{ careSymbols[action.id] }}</text><text class="care-name">{{ action.name }}</text><text class="care-caption">{{ careRemaining(action.id) > 0 ? careRemaining(action.id) + '秒后' : action.description }}</text></button></view><text class="help-text">每种照料间隔 30 秒。留一点时间，让小咪享受你的温柔。</text></view>
+              <view v-if="ownedOutfits.length" class="card"><text class="section-title">今天穿什么</text><view class="choice-row"><button class="choice" :class="{ selected: !activeCat.outfit }" @click="wear(null)">毛茸茸日常</button><button v-for="item in ownedOutfits" :key="item.id" class="choice" :class="{ selected: activeCat.outfit == item.id }" @click="wear(item.id)">{{ item.name }}</button></view></view>
+            </template>
+            <view v-if="eventDefinition && state.pendingEvent" class="card story-card"><text class="eyebrow">A LITTLE MOMENT · {{ eventCats }}</text><text class="section-title">{{ eventDefinition.title }}</text><text class="body-text">{{ eventDefinition.text }}</text><button v-for="(choice, index) in eventDefinition.choices" :key="index" class="story-choice" @click="chooseEvent(index)">{{ choice.text }} <text>→</text></button></view>
+            <view v-if="encounterSource && state.pendingEncounter" class="card encounter-card"><text class="eyebrow">SOMEONE NEW</text><text class="section-title">{{ encounterSource.title }}</text><text class="body-text">{{ encounterSource.text }}</text><view class="encounter-info"><view class="tiny-coat" :style="{ backgroundColor: breedColor(state.pendingEncounter.breed) }"/><text>{{ breedName(state.pendingEncounter.breed) }} · {{ genderName(state.pendingEncounter.gender) }}</text><text>{{ encounterSource.price ? encounterSource.price + ' 金币' : '免费领养' }}</text></view><input v-model="encounterName" class="text-input" maxlength="12" placeholder="给新小咪起个名字（可选）" /><view class="choice-row"><button class="choice" @click="declineEncounter">把缘分留给下一个家</button><button class="primary compact" :disabled="state.coins < encounterSource.price" @click="adoptEncounter">接它回家</button></view></view>
+            <view v-if="!eventDefinition && !encounterSource" class="quiet-note"><text>✧</text><text>新的小故事，会在日常里慢慢发生。</text></view>
+          </view>
+          <view v-show="tab == 'companion'">
+            <text class="eyebrow">TIME WELL SPENT</text><text class="page-title">你忙你的，我陪着你。</text><text class="page-description">专心做一件事，把这段时间留给自己和小咪。</text>
+            <view v-if="state.companion" class="card companion-running"><text class="soft-tag">{{ companionCatName }} 正陪你{{ companionActivityName }}</text><text class="clock-face">{{ companionTime }}</text><text class="muted">一共 {{ state.companion.durationMinutes }} 分钟 · 慢慢来，就很好</text><view class="companion-track"><view class="companion-fill" :style="{ width: companionProgress + '%' }"/></view><text class="body-text">{{ companionMessage }}</text><button class="choice" @click="cancelCompanion">提前结束这次陪伴</button><text class="footnote">完整陪伴结束后，会为小咪增加好感和心情。</text></view>
+            <view v-else class="card"><text class="section-title">今天想一起做什么</text><view class="activity-list"><button v-for="item in ACTIVITIES" :key="item.id" class="activity-button" :class="{ selected: activity == item.id }" @click="activity = item.id"><text class="activity-icon" :style="{ color: item.color }">{{ activitySymbols[item.id] }}</text><view><text class="activity-name">{{ item.name }}</text><text class="muted">{{ item.description }}</text></view><text class="activity-check">{{ activity == item.id ? '✓' : '○' }}</text></button></view><text class="field-label">留出一小段时间</text><view class="choice-row"><button v-for="duration in durations" :key="duration" class="choice" :class="{ selected: companionMinutes == duration }" @click="companionMinutes = duration">{{ duration }} 分钟</button></view><button class="primary" :disabled="!activeCat || activeCat.status == 'away'" @click="beginCompanion">和{{ activeCat ? activeCat.name : '小咪' }}开始陪伴</button><text class="footnote">切换页面也会继续计时；回来时会补记已经完成的陪伴。</text></view>
+          </view>
+          <view v-show="tab == 'career'"><text class="eyebrow">LITTLE WORK, LITTLE JOY</text><text class="page-title">认真生活的小小报酬。</text><text class="page-description">发挥一点你的拿手好戏，为家里攒下一罐快乐。</text><CareerGames :state="state" :now="now" @change="careerChanged" /></view>
+          <view v-show="tab == 'shop'">
+            <view class="page-heading"><view><text class="eyebrow">MIAOMI CORNER SHOP</text><text class="page-title">小咪的生活小铺。</text></view><text class="coin-pill">◉ {{ state.coins }}</text></view><text class="page-description">好好吃饭，漂漂亮亮，把小日子过得软一点。</text>
+            <view class="shop-grid"><view v-for="item in SHOP_ITEMS" :key="item.id" class="card shop-item"><view class="product-art" :style="{ backgroundColor: item.color }"><text>{{ item.id == 'food' ? '猫粮' : item.id == 'treat' ? '小鱼干' : item.id == 'ribbon' ? '୨୧' : '≈' }}</text><text class="product-quantity">{{ item.category == 'food' ? '一份 ×' + item.quantity : '永久装扮' }}</text></view><text class="product-name">{{ item.name }}</text><text class="muted">{{ item.subtitle }}</text><view class="product-bottom"><text class="price">{{ item.price }} 金币</text><text class="help-text">已有 {{ state.inventory[item.id] || 0 }}</text></view><button class="choice buy-button" :disabled="state.coins < item.price || (item.category == 'outfit' && state.inventory[item.id] > 0)" @click="buy(item.id)">{{ item.category == 'outfit' && state.inventory[item.id] > 0 ? '已在衣橱' : state.coins < item.price ? '金币还差一点' : '带回家' }}</button></view></view>
+            <view class="card"><view class="section-heading"><view><text class="section-title">再留一处暖暖的位置</text><text class="muted">家里有 {{ state.cats.length }} / {{ MAX_CATS }} 只小咪</text></view><text class="price">{{ ADOPTION_PRICE }} 金币</text></view><text class="body-text">猫舍里的新朋友可以选择品种和性别。它的性格，依然是一份需要慢慢打开的礼物。</text><button v-if="!shopAdoption" class="choice full-width" :disabled="state.cats.length >= MAX_CATS" @click="shopAdoption = true">{{ state.cats.length >= MAX_CATS ? '家里的位置已经住满啦' : '认识一位新朋友' }}</button><view v-else><input v-model="shopCatName" class="text-input" maxlength="12" placeholder="新小咪的名字（可选）"/><view class="breed-grid"><button v-for="item in BREEDS" :key="item.id" class="breed-option" :class="{ selected: shopBreed == item.id }" @click="shopBreed = item.id"><view class="coat-dot" :style="{ backgroundColor: item.color }"/><text>{{ item.name }}</text></button></view><view class="choice-row"><button class="choice" :class="{ selected: shopGender == 'female' }" @click="shopGender = 'female'">♀ 猫妹妹</button><button class="choice" :class="{ selected: shopGender == 'male' }" @click="shopGender = 'male'">♂ 猫弟弟</button></view><button class="primary" :disabled="state.coins < ADOPTION_PRICE || state.cats.length >= MAX_CATS" @click="adoptShop">{{ state.cats.length >= MAX_CATS ? '家里已经住满啦' : state.coins < ADOPTION_PRICE ? '攒够金币再接它回家' : '花 ' + ADOPTION_PRICE + ' 金币，接它回家' }}</button><text class="help-text">也许在某个日常里，你会偶遇一只等待新家的小猫。</text></view></view>
+          </view>
+          <view v-show="tab == 'diary'"><text class="eyebrow">TINY MOMENTS, FOREVER</text><text class="page-title">把平凡的一刻，收好。</text><text class="page-description">{{ state.cats.length }} 只小咪，{{ state.diary.length }} 段被收藏的日常。</text><view v-if="!state.diary.length" class="card empty-state"><text>第一篇日记，等着你和小咪一起写。</text></view><view v-else class="diary-list"><view v-for="entry in state.diary" :key="entry.id" class="diary-entry"><view class="diary-dot" :class="entry.kind"/><view class="diary-content"><view class="diary-top"><text>{{ diaryLabels[entry.kind] || '家里的日常' }}</text><text>{{ formatDiaryTime(entry.time) }}</text></view><text class="diary-text">{{ entry.text }}</text></view></view></view><text class="footnote">为你保留最近 60 段小日常。</text></view>
+          <view v-show="tab == 'settings'"><text class="eyebrow">MAKE YOURSELF AT HOME</text><text class="page-title">按喜欢的节奏生活。</text><text class="page-description">给自己留一点温柔，也把陪伴好好收起来。</text><view class="card"><view class="section-heading"><view><text class="section-title">小咪的温柔提醒</text><text class="muted">喝口水、伸懒腰、看看远处</text></view><switch :checked="state.remindersEnabled" color="#82976f" @change="toggleReminders" /></view><view class="choice-row"><button v-for="minutes in reminderOptions" :key="minutes" class="choice" :class="{ selected: state.reminderMinutes == minutes }" @click="setReminderMinutes(minutes)">每 {{ minutes }} 分钟</button></view><text class="help-text">提醒仅在小程序打开时出现。离开或锁屏后不会发送通知。</text></view><view class="card"><text class="section-title">把这份陪伴收好</text><text class="body-text">进度会自动保存到当前设备。手动备份可以把日常搬到另一台设备。</text><text class="save-status">{{ lastSavedAt ? '已保存在本机 · ' + formatClock(lastSavedAt) : '等待保存' }}</text><view class="choice-row"><button class="choice" @click="exportSave">复制存档备份</button><button class="choice" @click="importSave">从剪贴板恢复</button></view><text class="help-text">存档包含你的称呼、猫咪和日记，保存到自己信任的地方。</text></view><view class="card"><view class="section-heading"><view><text class="section-title">微信云端备份</text><text class="muted">{{ cloudStatus }}</text></view><text class="soft-tag">{{ cloudRevision > 0 ? '第 ' + cloudRevision + ' 版' : '未同步' }}</text></view><text class="body-text">登录身份只在云函数中交换。云端有更新时会阻止旧设备覆盖，恢复前也会保留一份本机备份。</text><view class="choice-row"><button class="choice" :disabled="cloudBusy" @click="backupCloud">备份到云端</button><button class="choice" :disabled="cloudBusy" @click="restoreCloud">恢复云端存档</button></view><text class="help-text">需要先关联并部署本工程的 uniCloud 服务空间；未部署时不会影响本机存档。</text></view><view class="card"><text class="section-title">慢慢陪伴的小约定</text><text class="body-text">小咪的需求会随时间变化。离线最多结算 8 小时，好感损失设有上限；回来后会留出照顾它的时间。小咪出门散心时，也能免费接它回家。</text><text class="body-text">金币只用于游戏里的小日常；职业的评分采用明确的题目、主题词和像素匹配规则。</text></view><view class="card reset-card"><text class="section-title">重新开始一段陪伴</text><text class="body-text">这会替换当前设备的进度。先复制一份备份，再和新的小咪相遇吧。</text><button class="danger-button" @click="confirmReset">重新开始</button></view></view>
+        </template>
+        <text class="page-footer">小咪小咪 miaoMi · 日子很长，慢慢相伴</text>
+      </view>
+    </scroll-view>
+    <view v-if="state.initialized" class="bottom-nav"><button v-for="item in navigation" :key="item.id" class="nav-button" :class="{ active: tab == item.id }" @click="switchTab(item.id)"><view class="nav-icon-wrap"><text class="nav-symbol">{{ item.symbol }}</text><view v-if="item.id == 'home' && (state.pendingEvent || state.pendingEncounter)" class="notification-dot"/><view v-if="item.id == 'companion' && state.companion" class="notification-dot"/></view><text>{{ item.label }}</text></button></view>
+    <view v-if="feedback" class="feedback-toast" :class="{ 'feedback-error': !feedbackOk }"><text>{{ feedback }}</text></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+// JS imports target WeChat and Web only, not native App UTS.
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app'
+import * as engine from '../../common/game/engine.js'
+import { ACTIVITIES, ADOPTION_PRICE, BREEDS, CARE_ACTIONS, ENCOUNTER_SOURCES, MAX_CATS, PROFESSIONS, RANDOM_EVENTS, REMINDERS, SHOP_ITEMS, STORAGE_KEY } from '../../common/game/data.js'
+import CatRoom from '../../components/CatRoom.uvue'
+import CareerGames from '../../components/CareerGames.uvue'
+const state = ref(engine.createInitialState())
+const tab = ref('home')
+const now = ref(Date.now())
+const scrollTop = ref(0)
+const playerName = ref('')
+const newCatName = ref('小橘')
+const newBreed = ref('orange')
+const newGender = ref('female')
+const newProfession = ref('programmer')
+const shopAdoption = ref(false)
+const shopCatName = ref('')
+const shopBreed = ref('orange')
+const shopGender = ref('female')
+const encounterName = ref('')
+const activity = ref('work')
+const companionMinutes = ref(25)
+const catMessage = ref('小咪窝在阳光里，等你轻轻摸摸它。')
+const feedback = ref('')
+const feedbackOk = ref(true)
+const storageWarning = ref('')
+const lastSavedAt = ref(0)
+const reminderMessage = ref('')
+const CLOUD_REVISION_KEY = STORAGE_KEY + '.cloud-revision'
+const cloudToken = ref('')
+const cloudRevision = ref(0)
+const cloudBusy = ref(false)
+const cloudStatus = ref('尚未连接云端')
+const reminderOptions = [15, 30, 60]
+const durations = [1, 5, 15, 25, 60]
+const navigation = [{ id: 'home', label: '小窝', symbol: '⌂' }, { id: 'companion', label: '陪伴', symbol: '◷' }, { id: 'career', label: '小工作', symbol: '✎' }, { id: 'shop', label: '小铺', symbol: '♧' }, { id: 'diary', label: '日记', symbol: '☷' }]
+const statDefinitions = [{ id: 'affection', label: '好感', color: '#cf9e92' }, { id: 'food', label: '饱食', color: '#c9ae79' }, { id: 'water', label: '饮水', color: '#8eafa9' }, { id: 'cleanliness', label: '清洁', color: '#a8b99b' }, { id: 'mood', label: '心情', color: '#d3b978' }, { id: 'energy', label: '精力', color: '#b1a4bf' }]
+const careSymbols = { feed: '♧', water: '♢', play: '✧', brush: '≋', bath: '♨', pet: '♡', snack: '⋈' }
+const activitySymbols = { work: '▤', sleep: '☾', relax: '♧', exercise: '〰', watch: '▣' }
+const diaryLabels = { care: '被照顾的小幸福', event: '一段小插曲', adoption: '家里来新朋友了', career: '努力生活的报酬', companion: '一起度过的时间', system: '家里的日常' }
+let timer = 0
+let feedbackTimer = 0
+let lastPersistAt = 0
+let lastSimulationAt = 0
+let nextIdleAt = 0
+let nextReminderAt = 0
+let reminderIndex = 0
+let loaded = false
+let protectedUnreadableSave = false
+const activeCat = computed(() => engine.getActiveCat(state.value))
+const catPose = computed(() => activeCat.value ? (activeCat.value.energy < 20 ? 'sleepy' : activeCat.value.personality) : 'calm')
+const selectedBreedDescription = computed(() => BREEDS.find(item => item.id == newBreed.value)?.subtitle || '')
+const todayLabel = computed(() => { const date = new Date(now.value); return (date.getMonth() + 1) + '月' + date.getDate() + '日' })
+const daysTogether = computed(() => activeCat.value ? Math.max(1, Math.floor((now.value - activeCat.value.joinedAt) / 86400000) + 1) : 1)
+const affectionText = computed(() => activeCat.value ? engine.affectionLabel(activeCat.value.affection) : '')
+const eventDefinition = computed(() => state.value.pendingEvent ? RANDOM_EVENTS.find(item => item.id == state.value.pendingEvent.eventId) : null)
+const eventCats = computed(() => state.value.pendingEvent ? state.value.cats.filter(cat => state.value.pendingEvent.catIds.includes(cat.id)).map(cat => cat.name).join(' 和 ') : '')
+const encounterSource = computed(() => state.value.pendingEncounter ? ENCOUNTER_SOURCES.find(item => item.id == state.value.pendingEncounter.sourceId) : null)
+const ownedOutfits = computed(() => SHOP_ITEMS.filter(item => item.category == 'outfit' && state.value.inventory[item.id] > 0))
+const companionCat = computed(() => state.value.companion ? state.value.cats.find(cat => cat.id == state.value.companion.catId) : null)
+const companionCatName = computed(() => companionCat.value ? companionCat.value.name : '小咪')
+const companionActivityName = computed(() => state.value.companion ? ACTIVITIES.find(item => item.id == state.value.companion.activity)?.name || '' : '')
+const companionMessage = computed(() => companionCat.value ? engine.getCatMessage(companionCat.value, 'companion') : '')
+const companionTime = computed(() => { const seconds = state.value.companion ? Math.max(0, Math.ceil((state.value.companion.endsAt - now.value) / 1000)) : 0; return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0') })
+const companionProgress = computed(() => state.value.companion ? Math.min(100, Math.max(0, (now.value - state.value.companion.startedAt) / (state.value.companion.endsAt - state.value.companion.startedAt) * 100)) : 0)
+function breedName(id: string): string { return BREEDS.find(item => item.id == id)?.name || '小咪' }
+function breedColor(id: string): string { return BREEDS.find(item => item.id == id)?.color || '#d9b182' }
+function genderName(id: string): string { return id == 'female' ? '妹妹' : '弟弟' }
+function formatClock(time: number): string { const date = new Date(time); return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') }
+function formatDiaryTime(time: number): string { const date = new Date(time); return (date.getMonth() + 1) + '月' + date.getDate() + '日 ' + formatClock(time) }
+function notify(message: string, ok: boolean = true) { feedback.value = message; feedbackOk.value = ok; if (feedbackTimer) clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() => { feedback.value = '' }, 4500) }
+function persist() {
+  if (!state.value.initialized || protectedUnreadableSave) return
+  try { uni.setStorageSync(STORAGE_KEY, engine.serializeGame(state.value)); lastSavedAt.value = Date.now(); lastPersistAt = lastSavedAt.value; storageWarning.value = '' }
+  catch (_) { storageWarning.value = '本机空间不足或暂时无法保存，请到设置复制一份存档备份。' }
+}
+function resultChanged(result) { catMessage.value = result.message; notify(result.message, result.ok); persist() }
+function switchTab(next: string) { tab.value = next; scrollTop.value = 1; nextTick(() => { scrollTop.value = 0 }) }
+function openShopAdoption() { switchTab('shop'); shopAdoption.value = true }
+function refreshIdle() { if (activeCat.value) catMessage.value = engine.getCatMessage(activeCat.value); nextIdleAt = Date.now() + 45000 }
+function selectCat(id: string) { state.value.activeCatId = id; refreshIdle(); persist() }
+function careRemaining(action: string): number { if (!activeCat.value) return 0; const last = activeCat.value.lastCareAt[action]; return last == null ? 0 : Math.max(0, Math.ceil((30000 - (now.value - last)) / 1000)) }
+function care(action: string) { if (!activeCat.value) return; advance(); resultChanged(engine.careForCat(state.value, activeCat.value.id, action)); nextIdleAt = Date.now() + 45000 }
+function retrieve() { if (activeCat.value) resultChanged(engine.retrieveCat(state.value, activeCat.value.id)) }
+function wear(id) { if (activeCat.value) resultChanged(engine.equipOutfit(state.value, activeCat.value.id, id)) }
+function buy(id: string) { resultChanged(engine.buyItem(state.value, id)) }
+function chooseEvent(index: number) { if (state.value.pendingEvent) resultChanged(engine.resolveEvent(state.value, state.value.pendingEvent.id, index)) }
+function adoptEncounter() { const result = engine.acceptEncounter(state.value, encounterName.value); resultChanged(result); if (result.ok) { encounterName.value = ''; refreshIdle() } }
+function declineEncounter() { resultChanged(engine.dismissEncounter(state.value)); encounterName.value = '' }
+function adoptShop() { const result = engine.adoptCat(state.value, { name: shopCatName.value, breed: shopBreed.value, gender: shopGender.value, source: 'shop' }); resultChanged(result); if (result.ok) { shopCatName.value = ''; shopAdoption.value = false; switchTab('home'); refreshIdle() } }
+function createFirstGame() {
+  if (protectedUnreadableSave) {
+    try { const raw = uni.getStorageSync(STORAGE_KEY); uni.setStorageSync(STORAGE_KEY + '.unreadable', raw); protectedUnreadableSave = false }
+    catch (_) { notify('原存档暂时无法备份，请先释放本机空间再试。', false); return }
+  }
+  state.value = engine.createGame({ playerName: playerName.value, catName: newCatName.value, breed: newBreed.value, gender: newGender.value, profession: newProfession.value })
+  refreshIdle(); persist(); nextReminderAt = Date.now() + state.value.reminderMinutes * 60000
+  notify('小咪到家啦，属于你们的小小日常开始了。')
+}
+function adoptFirst() {
+  if (protectedUnreadableSave) { uni.showModal({ title: '开始新的陪伴', content: '当前存档无法读取。旧存档会先保存在本机的故障备份中，再创建新进度。', confirmText: '备份并开始', success: res => { if (res.confirm) createFirstGame() } }); return }
+  createFirstGame()
+}
+function beginCompanion() { advance(); resultChanged(engine.startCompanion(state.value, activity.value, companionMinutes.value)) }
+function cancelCompanion() { uni.showModal({ title: '这次先陪到这里吗', content: '提前结束不会获得本次完整陪伴奖励。小咪会等你下次再来。', confirmText: '先去忙', cancelText: '继续陪伴', success: res => { if (res.confirm) resultChanged(engine.stopCompanion(state.value)) } }) }
+function careerChanged(result) { notify(result.message, result.ok); persist() }
+function toggleReminders(event) { state.value.remindersEnabled = event.detail.value; reminderMessage.value = ''; nextReminderAt = Date.now() + state.value.reminderMinutes * 60000; persist() }
+function setReminderMinutes(minutes: number) { state.value.reminderMinutes = minutes; nextReminderAt = Date.now() + minutes * 60000; persist() }
+function withCloudSession(next: (token: string) => void) {
+  if (cloudToken.value) { next(cloudToken.value); return }
+  cloudBusy.value = true
+  cloudStatus.value = '正在登录微信…'
+  uni.login({ provider: 'weixin', success: (login: any) => {
+    uniCloud.callFunction({ name: 'miao-session', data: { code: login.code }, success: (response: any) => {
+      const result = response.result
+      if (!result || result.code != 0 || typeof result.token != 'string') { cloudBusy.value = false; cloudStatus.value = result?.message || '云端登录失败'; notify(cloudStatus.value, false); return }
+      cloudToken.value = result.token
+      cloudStatus.value = '微信身份已连接'
+      next(result.token)
+    }, fail: () => { cloudBusy.value = false; cloudStatus.value = '登录云函数不可用'; notify('请先部署 miao-session 云函数。', false) } })
+  }, fail: () => { cloudBusy.value = false; cloudStatus.value = '未能取得微信登录凭证'; notify(cloudStatus.value, false) } })
+}
+function callCloudSave(data: any, success: (result: any) => void) {
+  uniCloud.callFunction({ name: 'miao-save', data, success: (response: any) => success(response.result), fail: () => { cloudBusy.value = false; cloudStatus.value = '存档云函数不可用'; notify('请先关联服务空间并部署 miao-save。', false) } })
+}
+function backupCloud() {
+  if (cloudBusy.value) return
+  advance(); persist()
+  withCloudSession((token: string) => {
+    cloudBusy.value = true; cloudStatus.value = '正在备份…'
+    callCloudSave({ action: 'save', token, state: state.value, expectedRevision: cloudRevision.value }, (result: any) => {
+      cloudBusy.value = false
+      if (result && result.code == 0) { cloudRevision.value = result.revision; uni.setStorageSync(CLOUD_REVISION_KEY, cloudRevision.value); cloudStatus.value = '云端备份完成'; notify('这份陪伴已经好好收进云端。'); return }
+      if (result && result.code == 401) cloudToken.value = ''
+      cloudStatus.value = result?.message || '云端备份失败'; notify(cloudStatus.value, false)
+    })
+  })
+}
+function restoreCloud() {
+  if (cloudBusy.value) return
+  withCloudSession((token: string) => {
+    cloudBusy.value = true; cloudStatus.value = '正在读取云端…'
+    callCloudSave({ action: 'load', token }, (result: any) => {
+      cloudBusy.value = false
+      if (!result || result.code != 0) { if (result && result.code == 401) cloudToken.value = ''; cloudStatus.value = result?.message || '云端读取失败'; notify(cloudStatus.value, false); return }
+      cloudRevision.value = result.revision || 0
+      uni.setStorageSync(CLOUD_REVISION_KEY, cloudRevision.value)
+      if (!result.state) { cloudStatus.value = '云端还没有存档'; notify(cloudStatus.value, false); return }
+      const restored = engine.deserializeGame(JSON.stringify(result.state))
+      if (!restored || !restored.initialized) { cloudStatus.value = '云端存档无法读取'; notify(cloudStatus.value, false); return }
+      uni.showModal({ title: '恢复云端陪伴吗', content: '云端有 ' + restored.cats.length + ' 只小咪和 ' + restored.coins + ' 枚金币。当前进度会先保留一份本机备份。', confirmText: '恢复', success: (modal: any) => {
+        if (!modal.confirm) { cloudStatus.value = '已读取云端，未替换本机进度'; return }
+        try { uni.setStorageSync(STORAGE_KEY + '.before-cloud-restore', engine.serializeGame(state.value)) } catch (_) { notify('无法保留本机备份，暂时没有恢复。', false); return }
+        state.value = restored; advance(true); refreshIdle(); persist(); switchTab('home'); cloudStatus.value = '已恢复云端第 ' + cloudRevision.value + ' 版'; notify('云端的小咪和日常都回来啦。')
+      } })
+    })
+  })
+}
+function advance(offline: boolean = false) {
+  if (!state.value.initialized) return
+  now.value = Date.now(); engine.advanceTime(state.value, now.value, { offline }); engine.rollEvent(state.value, now.value); engine.maybeEncounter(state.value, now.value)
+  if (state.value.companion && now.value >= state.value.companion.endsAt) { const result = engine.finishCompanion(state.value, now.value); notify(result.message, result.ok); persist() }
+  lastSimulationAt = now.value
+}
+function heartbeat() {
+  now.value = Date.now(); if (!state.value.initialized) return
+  if (now.value - lastSimulationAt >= 5000 || (state.value.companion && now.value >= state.value.companion.endsAt)) advance()
+  if (now.value >= nextIdleAt) refreshIdle()
+  if (state.value.remindersEnabled && now.value >= nextReminderAt) { reminderMessage.value = REMINDERS[reminderIndex % REMINDERS.length].text; reminderIndex++; nextReminderAt = now.value + state.value.reminderMinutes * 60000 }
+  if (now.value - lastPersistAt >= 15000) persist()
+}
+function exportSave() { advance(); uni.setClipboardData({ data: engine.serializeGame(state.value), success: () => notify('存档已复制，记得把它粘贴到自己信任的地方。'), fail: () => notify('未能复制存档，请检查剪贴板权限。', false) }) }
+function importSave() {
+  uni.getClipboardData({ success: res => {
+    const restored = engine.deserializeGame(res.data)
+    if (!restored || !restored.initialized) { notify('剪贴板里没有完整的小咪存档。', false); return }
+    uni.showModal({ title: '恢复这份陪伴吗', content: '将恢复 ' + restored.cats.length + ' 只小咪和 ' + restored.coins + ' 枚金币。当前进度会先在本机保留一份恢复前备份。', confirmText: '恢复存档', success: modal => {
+      if (!modal.confirm) return
+      try { uni.setStorageSync(STORAGE_KEY + '.before-restore', engine.serializeGame(state.value)) } catch (_) { notify('无法保留当前进度的备份，暂时没有恢复。', false); return }
+      state.value = restored; advance(true); refreshIdle(); persist(); nextReminderAt = Date.now() + state.value.reminderMinutes * 60000; switchTab('home'); notify('熟悉的小咪和日常，都回来啦。')
+    } })
+  }, fail: () => notify('未能读取剪贴板，请检查权限后重试。', false) })
+}
+function confirmReset() {
+  uni.showModal({ title: '重新开始一段陪伴', content: '当前进度会替换为新的领养页面。继续前会自动保留一份本机备份，也建议先复制备份以便恢复。', confirmText: '重新开始', confirmColor: '#a37465', success: res => {
+    if (!res.confirm) return
+    try { uni.setStorageSync(STORAGE_KEY + '.before-reset', engine.serializeGame(state.value)); uni.removeStorageSync(STORAGE_KEY) } catch (_) { notify('无法备份当前进度，暂时没有重新开始。', false); return }
+    state.value = engine.createInitialState(); lastSavedAt.value = 0; tab.value = 'home'; reminderMessage.value = ''; feedback.value = ''; storageWarning.value = ''; shopAdoption.value = false
+  } })
+}
+onLoad(() => {
+  try { const raw = uni.getStorageSync(STORAGE_KEY); if (typeof raw == 'string' && raw.length > 0) { const restored = engine.deserializeGame(raw); if (restored) state.value = restored; else { protectedUnreadableSave = true; storageWarning.value = '原存档暂时无法读取，已保留原内容。重新领养时会先保存故障备份。' } } }
+  catch (_) { protectedUnreadableSave = true; storageWarning.value = '本机存储暂时无法读取，请先检查设备空间。' }
+  try { const revision = uni.getStorageSync(CLOUD_REVISION_KEY); if (typeof revision == 'number' && revision >= 0) cloudRevision.value = revision }
+  catch (_) { cloudRevision.value = 0 }
+  loaded = true; refreshIdle()
+})
+onShow(() => { if (!loaded) return; advance(true); persist(); nextReminderAt = Date.now() + state.value.reminderMinutes * 60000; if (timer) clearInterval(timer); timer = setInterval(heartbeat, 1000) })
+function pause() { if (timer) { clearInterval(timer); timer = 0 }; advance(); persist() }
+onHide(pause)
+onUnload(() => { pause(); if (feedbackTimer) clearTimeout(feedbackTimer) })
+</script>
+
+<style>
+.app-shell{height:100vh;display:flex;flex-direction:column;background:#f7f5ee;color:#465346;overflow:hidden}.topbar{display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-shrink:0;padding:14px 20px 12px;background:#fcfbf6;border-bottom:1px solid #ecebdd}.brand{display:flex;flex-direction:row;align-items:center;gap:10px}.brand-mark{font-family:Georgia,serif;font-size:34px;color:#85996e;line-height:35px}.brand-name{display:block;font-size:16px;font-weight:600;letter-spacing:2px}.brand-caption{display:block;font-size:7px;color:#919980;letter-spacing:1px;margin-top:4px}.top-actions{display:flex;align-items:center;gap:9px}.coin-pill{font-size:12px;color:#9b8455;background:#f4eed9;border:1px solid #e9dfbe;border-radius:20px;padding:7px 12px;white-space:nowrap}.settings-button{font-size:21px;padding:0;line-height:32px;width:32px;margin:0;color:#89937c;background:transparent}.page-scroll{flex:1;min-height:0;height:0}.page-inner{padding:23px 18px 12px;max-width:650px;margin:0 auto;box-sizing:border-box}.eyebrow{display:block;font-size:8px;font-weight:600;letter-spacing:2px;line-height:16px;color:#9ba389;margin-bottom:8px}.page-title{display:block;font-size:23px;line-height:34px;font-weight:600;color:#475743;letter-spacing:.5px}.page-description{display:block;font-size:12px;color:#929a86;line-height:21px;margin:8px 0 23px}.page-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.date-tag{font-size:10px;color:#9a9e8a;white-space:nowrap}.card{margin:16px 0;background:#fffef9;border:1px solid #eaeadd;border-radius:20px;padding:20px;box-shadow:0 3px 12px #727c5204}.section-title{display:block;font-size:16px;font-weight:600;line-height:25px;color:#53604b}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px}.muted{display:block;font-size:10px;color:#9aa18d;line-height:18px;margin-top:4px}.body-text{display:block;font-size:12px;color:#939985;line-height:23px;margin:12px 0 17px}.help-text{display:block;font-size:10px;color:#a1a58f;line-height:18px;margin-top:9px}.footnote{display:block;text-align:center;font-size:10px;color:#a2a790;line-height:18px;margin-top:13px}.soft-tag{display:inline-block;flex-shrink:0;font-size:10px;line-height:18px;padding:5px 9px;color:#81916d;background:#f0f3e6;border-radius:9px}
+.field-label{display:block;font-size:12px;color:#7d886f;margin:17px 0 10px}.text-input{box-sizing:border-box;min-height:44px;height:44px;line-height:44px;border:1px solid #e3e7d6;border-radius:10px;padding:0 13px;background:#fcfcf6;font-size:13px;color:#6e795f;width:100%}.text-input:focus{border-color:#9aaf83}.choice-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}.choice{display:flex;align-items:center;justify-content:center;font-size:11px;padding:11px 13px;line-height:18px;color:#8a947b;background:#f4f5ec;border:1px solid #e6eada;border-radius:10px;margin:0;white-space:normal}.choice.selected,.breed-option.selected{background:#eaf0df;border-color:#a7ba90;color:#6e8758}.primary{display:flex;align-items:center;justify-content:center;width:100%;font-size:13px;line-height:21px;background:#879c70;color:#fffef6;border:1px solid #7e9467;border-radius:12px;padding:13px 15px;margin:20px 0 0;box-sizing:border-box}.compact{width:auto;margin:0;padding:10px 15px;font-size:11px}.full-width{width:100%;box-sizing:border-box}.breed-grid{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0 8px}.breed-option{display:flex;align-items:center;gap:7px;line-height:20px;font-size:11px;color:#8d957f;background:#fbfbf5;border:1px solid #e7e9dc;border-radius:10px;padding:9px 10px;margin:0}.coat-dot,.tiny-coat{width:14px;height:14px;flex-shrink:0;border-radius:6px 6px 7px 7px}.cat-list-scroll{width:100%;margin-bottom:16px;white-space:nowrap}.cat-list{display:flex;flex-direction:row;gap:7px;padding:1px 1px 5px;white-space:nowrap}.cat-chip{display:flex;flex-shrink:0;align-items:center;gap:7px;font-size:11px;color:#8e9881;line-height:19px;padding:9px 12px;margin:0;background:#f0f1e8;border:1px solid #e8eadc;border-radius:20px}.cat-chip.active{background:#fffdf4;border-color:#b0bd98;color:#6f815b}.chip-status{font-size:8px;color:#a5ab97}.add-cat{color:#a2ac91;background:transparent;border-style:dashed}.speech-bubble{position:relative;margin:12px 12px 20px;background:#eeefe3;padding:13px 17px;border-radius:4px 15px 15px 15px;font-size:11px;color:#8a937a;line-height:21px;text-align:center}.cat-details{margin-top:0}.stats-grid{display:flex;flex-wrap:wrap;column-gap:20px;row-gap:17px}.stat{width:calc(50% - 10px)}.stat-caption{display:flex;justify-content:space-between;font-size:10px;color:#969d87;margin-bottom:7px}.stat-caption text:last-child{font-size:9px}.stat-track{height:5px;background:#f0f0e6;border-radius:6px;overflow:hidden}.stat-fill{height:100%;border-radius:6px;transition:width .3s}.care-grid{display:flex;flex-wrap:wrap;gap:8px}.care-button{display:flex;flex-direction:column;align-items:center;justify-content:center;width:calc(33.333% - 6px);min-height:90px;padding:8px 4px;margin:0;background:#f8f8ef;border:1px solid #ebeedd;border-radius:13px;line-height:normal}.care-symbol{font-size:27px;line-height:32px;color:#a0ab84}.care-name{font-size:12px;color:#7e8c6c;margin-top:5px}.care-caption{font-size:8px;line-height:15px;color:#a4aa94;margin-top:5px;text-align:center}.return-panel{background:#f7efe5;border-radius:12px;margin-top:18px;padding:13px;font-size:11px;color:#ad8d6f;line-height:21px}.return-panel .primary{margin-top:10px;font-size:11px;padding:10px}.inline-hint{font-size:11px;color:#b18f78;margin-top:17px;line-height:20px}.story-card{background:#f0f3e7;border-color:#e4e9d6}.story-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;margin:9px 0 0;padding:12px 14px;background:#fcfdf6;border:1px solid #e3e8d6;border-radius:11px;font-size:11px;line-height:20px;color:#7c8a6a;text-align:left}.story-choice text{color:#aab298}.encounter-card{background:#f9f2e5;border-color:#ede3cd}.encounter-info{display:flex;align-items:center;gap:8px;font-size:10px;color:#ad9d7b;margin-bottom:16px}.encounter-info text:last-child{margin-left:auto}.quiet-note{display:flex;flex-direction:column;align-items:center;gap:10px;font-size:10px;color:#aeb39e;padding:18px 0}.quiet-note text:first-child{font-size:21px;color:#b7bca2}.activity-list{margin:18px 0}.activity-button{display:flex;align-items:center;gap:13px;box-sizing:border-box;width:100%;text-align:left;padding:14px;background:#fafaf3;border:1px solid #e9ecde;border-radius:13px;margin:9px 0;line-height:normal}.activity-button.selected{background:#f0f4e7;border-color:#b1c198}.activity-icon{font-size:25px;width:30px;text-align:center}.activity-name{font-size:12px;color:#78876a;line-height:21px}.activity-check{margin-left:auto;color:#91a575;font-size:17px}.companion-running{text-align:center;padding:28px 22px}.clock-face{display:block;font-size:57px;letter-spacing:4px;line-height:80px;color:#7e926b;margin-top:20px;font-weight:300;font-variant-numeric:tabular-nums}.companion-track{height:5px;background:#ecefdf;border-radius:5px;overflow:hidden;margin:22px 0}.companion-fill{height:5px;background:#a2b583;border-radius:5px;transition:width 1s linear}.companion-running .choice{display:inline-flex;margin:0 auto}.shop-grid{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:19px}.shop-item{width:calc(50% - 6px);margin:0;padding:12px;box-sizing:border-box}.product-art{display:flex;flex-direction:column;align-items:center;justify-content:center;height:112px;border-radius:12px;margin-bottom:13px;color:#786e55;font-size:23px;letter-spacing:3px}.product-quantity{font-size:8px;letter-spacing:1px;margin-top:10px;opacity:.7}.product-name{display:block;font-size:12px;font-weight:600;color:#78846b}.shop-item .muted{font-size:9px;line-height:17px;min-height:34px}.product-bottom{display:flex;align-items:center;justify-content:space-between;gap:4px;margin:14px 0 10px}.price{font-size:12px;color:#a09369;white-space:nowrap}.product-bottom .help-text{margin:0;font-size:8px}.buy-button{width:100%;box-sizing:border-box;padding:8px;font-size:10px}.diary-list{position:relative;padding:2px 0}.diary-entry{display:flex;gap:14px;padding:0 0 24px;position:relative}.diary-entry:before{content:'';position:absolute;top:12px;left:4px;bottom:0;width:1px;background:#dfe5d0}.diary-entry:last-child:before{display:none}.diary-dot{width:9px;height:9px;border:3px solid #f7f5ee;border-radius:50%;background:#a9b88e;flex-shrink:0;position:relative;z-index:1;margin-top:4px;box-sizing:content-box;margin-left:-3px}.diary-dot.adoption{background:#d8b489}.diary-dot.event{background:#c3a6b0}.diary-dot.career{background:#b6bc8a}.diary-dot.companion{background:#9eb9b3}.diary-content{flex:1;background:#fffef8;border:1px solid #e9ebdd;border-radius:12px;padding:14px 15px}.diary-top{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#a2aa91;margin-bottom:9px}.diary-top text:last-child{font-size:8px;color:#b0b6a1}.diary-text{font-size:11px;color:#87937a;line-height:22px}.empty-state{font-size:12px;color:#a2aa91;text-align:center;padding:35px 16px}.save-status{font-size:10px;color:#91a079}.reset-card{background:#faf4eb;border-color:#eee4d4}.danger-button{display:block;width:100%;box-sizing:border-box;font-size:11px;color:#ab8b75;line-height:20px;border:1px solid #e7d6c5;background:transparent;padding:10px;border-radius:10px;margin:0}.page-footer{display:block;font-size:9px;color:#b1b6a2;text-align:center;line-height:19px;padding:30px 0 16px}.bottom-nav{display:flex;flex-direction:row;flex-shrink:0;align-items:center;justify-content:space-around;background:#fcfbf6;border-top:1px solid #e8eadb;padding:7px 8px calc(8px + env(safe-area-inset-bottom));min-height:58px;box-sizing:content-box}.nav-button{display:flex;flex-direction:column;align-items:center;gap:3px;line-height:17px;font-size:9px;color:#acb29c;margin:0;padding:3px 7px;width:19%;background:transparent;box-sizing:border-box}.nav-button.active{color:#7b9066}.nav-icon-wrap{position:relative;width:33px;text-align:center;border-radius:10px;padding:2px 0}.nav-button.active .nav-icon-wrap{background:#eaf0dd}.nav-symbol{font-size:24px;line-height:26px}.notification-dot{position:absolute;right:1px;top:3px;width:6px;height:6px;border-radius:50%;background:#cfab7c;border:2px solid #fcfbf6}.notice{display:flex;align-items:center;justify-content:space-between;gap:13px;padding:13px 15px;border:1px solid #e4e8d6;background:#edf1e3;color:#8a9777;font-size:11px;line-height:20px;border-radius:13px;margin-bottom:18px}.notice-title{display:block;font-size:12px;color:#7a8b64;margin-bottom:4px}.notice text{word-break:break-word}.dismiss-button{font-size:23px;color:#9daa89;line-height:28px;padding:0 5px;margin:0;background:transparent;flex-shrink:0}.text-button{color:#7b8e66;background:transparent;font-size:11px;line-height:20px;padding:0;margin:0;flex-shrink:0}.warning-notice{background:#fbefe1;color:#b49771;border-color:#eddcc1}.warning-text{display:block;font-size:11px;color:#b59471;line-height:20px;margin-top:17px}.feedback-toast{position:fixed;bottom:calc(94px + env(safe-area-inset-bottom));left:24px;right:24px;max-width:560px;margin:0 auto;z-index:20;padding:14px 17px;border-radius:13px;background:#5f7356;box-shadow:0 8px 24px #46533322;color:#fcfcf6;font-size:12px;line-height:22px;text-align:center;pointer-events:none}.feedback-error{background:#a68b71}.onboarding .page-title{font-size:24px}.adoption-card{margin-top:21px}button[disabled]{opacity:.48;color:#a1a995!important;background:#eef0e4!important}button::after{border:0}@media(min-width:600px){.page-inner{padding:30px 26px 18px}.topbar{padding-left:32px;padding-right:32px}.care-grid{gap:10px}.care-button{width:calc(25% - 8px)}.bottom-nav{padding-left:calc((100% - 600px)/2);padding-right:calc((100% - 600px)/2)}.shop-item{padding:18px}.product-art{height:145px}}@media(prefers-reduced-motion:reduce){.stat-fill,.companion-fill{transition:none}}
+</style>

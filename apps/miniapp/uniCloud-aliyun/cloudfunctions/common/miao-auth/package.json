@@ -1,0 +1,8 @@
+{
+  "name": "miao-auth",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": { "miao-game": "file:../miao-game" },
+  "private": true
+}

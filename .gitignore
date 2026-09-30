@@ -1,0 +1,32 @@
+node_modules/
+dist/
+unpackage/
+
+# Local environment and credentials (commit examples only)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+project.private.config.json
+
+# Editor and local tool settings
+.idea/
+.vscode/
+.hbuilderx/
+.codex/
+.agents/
+/docs/cloud-task.md
+
+# Generated reports and machine-specific files
+test-results/
+playwright-report/
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini

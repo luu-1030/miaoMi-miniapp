@@ -1,0 +1,243 @@
+<script setup lang="uts">
+import { computed, ref, watch } from 'vue'
+import { PAINT_COLORS, PAINTING_REFERENCE, PROFESSIONS, PROGRAMMING_QUESTIONS, WRITING_TOPIC } from '../common/game/data.js'
+import { startCareerRound, submitCareerRound } from '../common/game/engine.js'
+
+const props = defineProps<{ state: any; now: number }>()
+const emit = defineEmits(['change'])
+const questionIndex = ref(0)
+const answers = ref<string[]>(['', '', ''])
+const story = ref('')
+const pixels = ref<number[]>(Array(64).fill(0))
+const selectedColor = ref(1)
+const feedback = ref('')
+const lastScore = ref(-1)
+const lastReward = ref(0)
+const rows = [0, 1, 2, 3, 4, 5, 6, 7]
+const letters = ['A', 'B', 'C', 'D']
+const colorNames = ['橡皮', '焦糖橘', '奶油黄', '可可棕', '柔软粉']
+const colors = PAINT_COLORS.map((color: string, index: number) => index === 0 ? '#fff8e9' : color)
+const round = computed(() => props.state.careerRound)
+const activeJob = computed(() => round.value != null && !round.value.claimed ? round.value.profession : props.state.profession)
+const hasRound = computed(() => round.value != null && round.value.profession === activeJob.value)
+const completed = computed(() => hasRound.value && round.value.claimed)
+const remaining = computed(() => props.state.lastCareerRewardAt == null ? 0 : Math.max(0, Math.ceil((props.state.lastCareerRewardAt + 60000 - props.now) / 1000)))
+const editable = computed(() => hasRound.value && !completed.value)
+const activeDescription = computed(() => PROFESSIONS.find((job: any) => job.id === activeJob.value)?.description ?? '')
+const questions = computed(() => {
+  const ids = hasRound.value ? round.value.questionIds : []
+  return ids.map((id: string) => PROGRAMMING_QUESTIONS.find((item: any) => item.id === id)).filter((item: any) => item != null).map((item: any) => {
+    const seed = round.value.id + '-' + item.id
+    let shift = 0
+    for (let i = 0; i < seed.length; i++) shift += seed.charCodeAt(i)
+    shift %= item.options.length
+    return { ...item, options: [...item.options.slice(shift), ...item.options.slice(0, shift)] }
+  })
+})
+const currentQuestion = computed(() => questions.value[questionIndex.value] ?? null)
+const answeredCount = computed(() => answers.value.filter((answer: string) => answer.length > 0).length)
+const storyLength = computed(() => story.value.replace(/[\s\p{P}\p{S}]/gu, '').length)
+const keywordCount = computed(() => WRITING_TOPIC.groups.filter((group: string[]) => group.some((word: string) => story.value.includes(word))).length)
+const paintedCount = computed(() => pixels.value.filter((color: number) => color !== 0).length)
+const ready = computed(() => {
+  if (!editable.value || remaining.value > 0) return false
+  if (activeJob.value === 'programmer') return questions.value.length === 3 && answeredCount.value === 3
+  if (activeJob.value === 'writer') return storyLength.value >= 30
+  return paintedCount.value > 0
+})
+const submitHint = computed(() => activeJob.value === 'programmer' ? '答完 3 题就能交卷，每一份努力都有回报。' : activeJob.value === 'writer' ? '至少 30 字，不含标点；篇幅和主题词决定评分。' : '点击画布上色，按颜色与位置的一致度评分。')
+
+function chooseJob(job: string) {
+  if (job === activeJob.value) return
+  if (round.value != null && !round.value.claimed) {
+    emit('change', { ok: false, message: '这份委托还没完成，先交上作品，再换一份工作吧。草稿已经为你保留。' })
+    return
+  }
+  props.state.profession = job
+  feedback.value = ''
+  lastScore.value = -1
+  emit('change', { ok: true, message: '换一种方式，给小咪攒一点快乐。' })
+}
+
+function startWork() {
+  const result = startCareerRound(props.state, activeJob.value)
+  emit('change', result)
+}
+
+function chooseAnswer(option: string) {
+  if (editable.value) answers.value[questionIndex.value] = option
+}
+
+function paint(index: number) {
+  if (editable.value) pixels.value[index] = selectedColor.value
+}
+
+function clearPainting() {
+  if (editable.value) pixels.value = Array(64).fill(0)
+}
+
+function matched(group: string[]): boolean {
+  return group.some((word: string) => story.value.includes(word))
+}
+
+function submitWork() {
+  if (!ready.value) return
+  let submission: any = {}
+  if (activeJob.value === 'programmer') {
+    const responses: any = {}
+    questions.value.forEach((question: any, index: number) => { responses[question.id] = answers.value[index] })
+    submission = { answers: responses }
+  } else if (activeJob.value === 'writer') {
+    submission = { text: story.value.trim() }
+  } else {
+    submission = { pixels: [...pixels.value] }
+  }
+  const result = submitCareerRound(props.state, round.value.id, submission)
+  feedback.value = result.message
+  if (result.ok) {
+    lastScore.value = result.score ?? 0
+    lastReward.value = result.reward ?? 0
+  }
+  emit('change', result)
+}
+
+watch(() => props.state.careerRound?.id, () => {
+  questionIndex.value = 0
+  answers.value = ['', '', '']
+  story.value = ''
+  pixels.value = Array(64).fill(0)
+  feedback.value = ''
+  lastScore.value = -1
+  lastReward.value = 0
+})
+</script>
+
+<template>
+  <view class="career">
+    <view class="intro">
+      <view class="intro-icon"><text>✎</text></view>
+      <view class="intro-copy"><text class="title">努力一点点，生活甜一点</text><text class="muted">接一份小委托，给小咪攒下一罐快乐。</text></view>
+    </view>
+    <view class="job-tabs">
+      <button v-for="job in PROFESSIONS" :key="job.id" class="job-tab" :class="{ active: activeJob === job.id }" @click="chooseJob(job.id)"><text>{{ job.name }}</text></button>
+    </view>
+    <view class="assignment">
+      <view class="task-heading"><text class="eyebrow">TODAY'S LITTLE TASK</text><text class="task-tag">小咪的生活基金</text></view>
+      <text class="description">{{ activeDescription }}</text>
+
+      <view v-if="!hasRound" class="start-card">
+        <text class="start-illustration">ฅ^•ﻌ•^ฅ</text>
+        <text class="start-title">小咪准备好陪你开工啦</text>
+        <text class="muted">一份小工作，赚取 10～40 枚金币。</text>
+        <button class="primary" :disabled="remaining > 0" @click="startWork">{{ remaining > 0 ? '休息一下 · ' + remaining + ' 秒' : '开始今天的小委托' }}</button>
+      </view>
+
+      <view v-else>
+        <view v-if="activeJob === 'programmer' && currentQuestion != null" class="code-game">
+          <view class="question-heading"><text class="section-title">{{ currentQuestion.prompt }}</text><text class="question-number">{{ questionIndex + 1 }} / 3</text></view>
+          <view class="code-window"><view class="code-toolbar"><text class="code-dots">● ● ●</text><text>hello-miaomi.js</text></view><text class="code">{{ currentQuestion.code }}</text></view>
+          <view class="answer-options">
+            <button v-for="(option, index) in currentQuestion.options" :key="option" class="answer-option" :class="{ selected: answers[questionIndex] === option }" :disabled="!editable" @click="chooseAnswer(option)"><text class="option-letter">{{ letters[index] }}</text><text class="option-code">{{ option }}</text><text v-if="answers[questionIndex] === option" class="answer-check">✓</text></button>
+          </view>
+          <view class="question-navigation"><button class="text-button" :disabled="questionIndex === 0" @click="questionIndex--">← 上一题</button><text class="muted">{{ completed ? '已交卷' : '已答 ' + answeredCount + ' / 3' }}</text><button class="text-button" :disabled="questionIndex >= questions.length - 1" @click="questionIndex++">下一题 →</button></view>
+          <view v-if="completed" class="explanation"><text class="explanation-title">正确答案：{{ currentQuestion.answer }}</text><text class="explanation-copy">{{ currentQuestion.explanation }}</text></view>
+        </view>
+
+        <view v-else-if="activeJob === 'writer'" class="writing-game">
+          <view class="writing-prompt"><text class="prompt-label">今日写作主题</text><text class="section-title">{{ WRITING_TOPIC.title }}</text><text class="muted">{{ WRITING_TOPIC.prompt }}</text></view>
+          <view class="keyword-row"><text v-for="group in WRITING_TOPIC.groups" :key="group[0]" class="keyword" :class="{ included: matched(group) }">{{ matched(group) ? '✓ ' : '' }}{{ group[0] }}</text></view>
+          <textarea v-model="story" class="story-input" :maxlength="600" :disabled="!editable" :adjust-position="true" placeholder="雨水轻轻敲着窗台，小猫把脑袋搁在我的手边。有它陪伴的日子……" />
+          <view class="writing-count"><text>主题词 {{ keywordCount }} / 3</text><text :class="{ enough: storyLength >= 30 }">正文 {{ storyLength }} 字 / 至少 30 字</text></view>
+          <text class="input-note">输入上限 600 字符，正文计数不含标点与空格。</text>
+        </view>
+
+        <view v-else-if="activeJob === 'painter'" class="painting-game">
+          <text class="section-title">画一只暖暖的小橘猫</text>
+          <view class="painting-reference"><view class="reference-grid"><view v-for="row in rows" :key="row" class="pixel-row"><view v-for="column in rows" :key="column" class="reference-pixel" :style="{ backgroundColor: colors[PAINTING_REFERENCE[row * 8 + column]] }" /></view></view><view class="reference-copy"><text class="reference-label">小咪的模样</text><text class="muted">对照 8 × 8 参考图，选颜色后点击下方画布。第一格颜色是橡皮。</text></view></view>
+          <view class="palette"><button v-for="(color, index) in colors" :key="index" class="color-button" :class="{ chosen: selectedColor === index }" :disabled="!editable" :style="{ backgroundColor: color }" @click="selectedColor = index"><text :style="{ color: index === 3 ? '#fff8e9' : '#5a4b40' }">{{ selectedColor === index ? '✓' : '' }}</text></button><text class="color-name">{{ colorNames[selectedColor] }}</text></view>
+          <view class="painting-grid"><view v-for="row in rows" :key="row" class="pixel-row"><button v-for="column in rows" :key="column" class="painting-pixel" :disabled="!editable" :style="{ backgroundColor: colors[pixels[row * 8 + column]] }" @click="paint(row * 8 + column)" /></view></view>
+          <view class="painting-footer"><text class="muted">你的画布 · 已上色 {{ paintedCount }} 格</text><button class="text-button" :disabled="!editable || paintedCount === 0" @click="clearPainting">清空画布</button></view>
+        </view>
+
+        <view v-if="completed" class="result-card"><view v-if="lastScore >= 0" class="result-heading"><text class="result-score">{{ lastScore }} 分</text><text class="result-reward">+ {{ lastReward }} 金币</text></view><text class="result-text">{{ feedback.length > 0 ? feedback : '这份委托已完成，报酬已经放进零钱罐啦。' }}</text><button class="primary" :disabled="remaining > 0" @click="startWork">{{ remaining > 0 ? '下一份委托 · ' + remaining + ' 秒' : '再接一份小委托' }}</button></view>
+        <view v-else class="submit-area"><text class="muted">{{ submitHint }}</text><button class="primary" :disabled="!ready" @click="submitWork">交上作品，领取报酬 →</button><text v-if="feedback.length > 0" class="feedback">{{ feedback }}</text></view>
+      </view>
+    </view>
+    <text class="footer-note">工作是为了好好生活，也记得陪陪小咪。</text>
+  </view>
+</template>
+
+<style scoped>
+.career{color:#535e4c;padding:8rpx 0 32rpx}
+.career button{font-size:26rpx;line-height:1.5;margin:0;box-sizing:border-box}
+.career button::after{border:0}
+.career button[disabled]{opacity:.48}
+.intro{display:flex;flex-direction:row;align-items:center;margin-bottom:30rpx}
+.intro-icon{width:78rpx;height:78rpx;border-radius:24rpx;background:#eee9d6;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:43rpx;color:#968d68;margin-right:20rpx}
+.intro-copy{display:flex;flex-direction:column;flex:1}
+.title{font-size:31rpx;font-weight:600;line-height:1.5;margin-bottom:7rpx;color:#485642}
+.muted{font-size:23rpx;line-height:1.8;color:#939987}
+.job-tabs{display:flex;flex-direction:row;background:#eeeee4;border-radius:24rpx;padding:8rpx;margin-bottom:28rpx}
+.career .job-tab{flex:1;padding:20rpx 8rpx;border-radius:19rpx;background:transparent;color:#939987;margin:0 3rpx}
+.career .job-tab.active{background:#fffef8;color:#73885f;box-shadow:0 4rpx 12rpx #4d624011;font-weight:600}
+.assignment{background:#fffef8;border:1rpx solid #e8e8d9;border-radius:30rpx;padding:28rpx}
+.task-heading{display:flex;flex-direction:row;align-items:center;justify-content:space-between}
+.eyebrow{font-size:16rpx;letter-spacing:2rpx;color:#a5ad96}
+.task-tag{font-size:19rpx;color:#a0956b}
+.description{display:block;font-size:24rpx;color:#9a9d8d;margin:18rpx 0 30rpx;line-height:1.7}
+.start-card{display:flex;flex-direction:column;align-items:center;padding:28rpx 0 10rpx}
+.start-illustration{font-size:72rpx;line-height:1.5;color:#af906b;margin:8rpx 0 25rpx}
+.start-title{font-size:28rpx;margin-bottom:14rpx;color:#68785a}
+.career .primary{width:100%;background:#82956f;color:#fffdf5;font-size:27rpx;line-height:1.6;padding:23rpx 14rpx;border-radius:19rpx;margin-top:26rpx}
+.question-heading{display:flex;flex-direction:row;align-items:center;justify-content:space-between;margin-bottom:24rpx}
+.section-title{font-size:28rpx;font-weight:600;line-height:1.65;color:#536147;flex:1}
+.question-number{font-size:22rpx;color:#a2a88f;flex-shrink:0;margin-left:12rpx}
+.code-window{background:#f4f5ea;border:1rpx solid #e6e8d9;border-radius:19rpx;overflow:hidden;margin-bottom:24rpx}
+.code-toolbar{display:flex;flex-direction:row;justify-content:space-between;padding:17rpx 20rpx;border-bottom:1rpx solid #e3e6d6;color:#a3ab95;font-size:18rpx}
+.code-dots{color:#b7c39f;letter-spacing:5rpx}
+.code{display:block;padding:30rpx 20rpx;white-space:pre-wrap;word-break:break-all;font-family:monospace;color:#6f855a;font-size:27rpx;line-height:1.8}
+.answer-options{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:space-between}
+.career .answer-option{display:flex;flex-direction:row;align-items:center;width:48.5%;margin-bottom:14rpx;padding:21rpx 15rpx;border:1rpx solid #e5e8d9;border-radius:16rpx;background:#fffefa;text-align:left;min-height:84rpx}
+.career .answer-option.selected{background:#edf2e4;border-color:#a5b98c;color:#6c8556}
+.career .answer-option[disabled]{opacity:1}
+.option-letter{display:flex;align-items:center;justify-content:center;background:#eff1e6;border-radius:8rpx;min-width:32rpx;height:36rpx;font-size:20rpx;color:#99a28a;margin-right:13rpx}
+.option-code{font-family:monospace;font-size:25rpx}
+.answer-check{font-size:22rpx;margin-left:auto}
+.question-navigation{display:flex;flex-direction:row;align-items:center;justify-content:space-between;margin:14rpx 0}
+.career .text-button{padding:17rpx 0;background:transparent;color:#81916f;font-size:23rpx}
+.explanation{background:#eff3e8;border-radius:17rpx;padding:22rpx;margin-top:24rpx}
+.explanation-title{display:block;font-size:24rpx;font-weight:600;margin-bottom:10rpx;color:#75875e}
+.explanation-copy{display:block;font-size:23rpx;line-height:1.85;color:#879379}
+.writing-prompt{display:flex;flex-direction:column;background:#f4f2e6;padding:25rpx;border-radius:20rpx}
+.prompt-label{color:#a49b78;font-size:21rpx;margin-bottom:9rpx}
+.writing-prompt .muted{margin-top:12rpx}
+.keyword-row{display:flex;flex-direction:row;flex-wrap:wrap;margin:24rpx 0 10rpx}
+.keyword{font-size:22rpx;color:#a2a58f;background:#f2f2e6;padding:9rpx 20rpx;border-radius:25rpx;margin-right:12rpx;margin-bottom:12rpx}
+.keyword.included{background:#e5eedb;color:#738a5e}
+.story-input{width:100%;height:360rpx;box-sizing:border-box;padding:23rpx;background:#fffefb;border:1rpx solid #e4e6d6;border-radius:17rpx;font-size:27rpx;line-height:1.95;color:#657259}
+.writing-count{display:flex;flex-direction:row;align-items:center;justify-content:space-between;font-size:20rpx;color:#a0a48f;margin-top:16rpx}
+.writing-count .enough{color:#7b9265}
+.input-note{display:block;font-size:19rpx;color:#adb19e;margin-top:10rpx;line-height:1.6}
+.painting-reference{display:flex;flex-direction:row;align-items:center;margin:26rpx 0}
+.reference-grid{width:208rpx;flex-shrink:0;border:1rpx solid #e2dccc;border-radius:12rpx;overflow:hidden}
+.pixel-row{display:flex;flex-direction:row;width:100%}
+.reference-pixel{width:12.5%;height:26rpx;box-sizing:border-box;border:.5rpx solid #806c4912}
+.reference-copy{display:flex;flex-direction:column;flex:1;margin-left:24rpx}
+.reference-label{font-size:25rpx;color:#83926f;margin-bottom:10rpx}
+.palette{display:flex;flex-direction:row;align-items:center;margin-bottom:22rpx}
+.career .color-button{width:56rpx;height:56rpx;line-height:52rpx;border:3rpx solid #e9e4d8;border-radius:50%;padding:0;margin-right:13rpx;font-size:27rpx;flex-shrink:0}
+.career .color-button.chosen{border-color:#90a376;box-shadow:0 0 0 4rpx #e5ebd8}
+.color-name{font-size:20rpx;color:#999e88;margin-left:auto}
+.painting-grid{width:100%;overflow:hidden;border:2rpx solid #e0dacc;border-radius:14rpx;background:#fff8e9}
+.career .painting-pixel{width:12.5%;height:0;min-height:0;padding:0 0 12.5%;margin:0;flex-shrink:0;border:.5rpx solid #806c4920;border-radius:0}
+.career .painting-pixel[disabled]{opacity:1}
+.painting-footer{display:flex;flex-direction:row;align-items:center;justify-content:space-between;margin-top:6rpx}
+.submit-area{border-top:1rpx dashed #e3e5d5;margin-top:30rpx;padding-top:24rpx}
+.result-card{background:#edf2e5;border-radius:21rpx;margin-top:30rpx;padding:25rpx}
+.result-heading{display:flex;flex-direction:row;align-items:center;justify-content:space-between;margin-bottom:16rpx}
+.result-score{font-size:40rpx;font-weight:600;color:#6e8558}
+.result-reward{font-size:27rpx;color:#ac9355}
+.result-text{display:block;font-size:25rpx;line-height:1.85;color:#7b8a6b}
+.feedback{display:block;font-size:24rpx;line-height:1.8;color:#a68b65;margin-top:18rpx}
+.footer-note{display:block;text-align:center;font-size:22rpx;color:#a4aa94;margin-top:30rpx;line-height:1.8}
+</style>

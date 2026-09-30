@@ -1,0 +1,127 @@
+export type Personality = 'clingy' | 'proud' | 'curious' | 'shy'
+export type Gender = 'female' | 'male'
+export type Profession = 'programmer' | 'writer' | 'painter'
+export type CareAction = 'feed' | 'water' | 'brush' | 'bath' | 'play' | 'pet' | 'snack'
+export type CatStat = 'food' | 'water' | 'cleanliness' | 'mood' | 'energy' | 'affection'
+
+export const BREEDS = [
+  { id: 'orange', name: '橘猫', subtitle: '一团暖呼呼的小太阳', color: '#e6aa69', pattern: 'striped' },
+  { id: 'ragdoll', name: '布偶猫', subtitle: '把柔软的云朵抱回家', color: '#e4d8cd', pattern: 'point' },
+  { id: 'british', name: '英短', subtitle: '圆圆脸颊，慢悠悠的日常', color: '#9aa9b7', pattern: 'solid' },
+  { id: 'calico', name: '三花猫', subtitle: '身上藏着秋天的颜色', color: '#e7bb93', pattern: 'patch' },
+  { id: 'tuxedo', name: '奶牛猫', subtitle: '穿着小礼服的生活搭子', color: '#65686d', pattern: 'tuxedo' },
+] as const
+export type Breed = typeof BREEDS[number]['id']
+
+// Personality remains internal: use reactions and preferences in the interface.
+export const PERSONALITIES: Record<Personality, { preferred: CareAction[]; pet: string[]; idle: string[]; companion: string }> = {
+  clingy: { preferred: ['pet', 'snack'], pet: ['小咪把脑袋挤进你的手心：再摸一下嘛。', '它蹭了蹭你，呼噜声像一台小小的发动机。'], idle: ['趴在你的脚边，把爪爪搭上来。', '你走到哪里，它就跟到哪里。'], companion: '它靠在你身边，安安静静地陪着。' },
+  proud: { preferred: ['brush', 'feed'], pet: ['它转过头，尾巴却偷偷绕住了你的手。', '“才没有在等你。”它又往你身边挪了一点。'], idle: ['背对你坐着，耳朵却一直朝向你。', '假装看风景，又悄悄回头看了你一眼。'], companion: '它把尾巴搭在你的手腕上，假装只是路过。' },
+  curious: { preferred: ['play', 'pet'], pet: ['它歪着脑袋，认真检查你的手指。', '小爪子轻轻碰了碰你：接下来玩什么？'], idle: ['追着地板上的一小块阳光。', '从纸箱后面探出一个好奇的小脑袋。'], companion: '它探头看看你在做什么，然后坐下来陪你。' },
+  shy: { preferred: ['feed', 'brush'], pet: ['它先缩了一下，又轻轻闻了闻你的手。', '这一次，它没有躲开，还慢慢眯起了眼睛。'], idle: ['躲在纸箱边，偷偷观察这个温暖的家。', '小心地靠近你，选了一个安心的距离坐下。'], companion: '它在离你一步远的地方躺下，慢慢睡着了。' },
+}
+
+export interface CareDefinition {
+  id: CareAction; name: string; icon: string; description: string; cost?: string
+  effects: Partial<Record<CatStat, number>>
+}
+export const CARE_ACTIONS: CareDefinition[] = [
+  { id: 'feed', name: '喂食', icon: 'fish', description: '猫粮 ×1 · 饱食 +28', cost: 'food', effects: { food: 28, affection: 4 } },
+  { id: 'water', name: '添水', icon: 'droplet', description: '免费 · 饮水 +35', effects: { water: 35, affection: 2 } },
+  { id: 'play', name: '逗猫', icon: 'sparkles', description: '心情 +18 · 精力 −10', effects: { mood: 18, energy: -10, affection: 5 } },
+  { id: 'brush', name: '梳毛', icon: 'brush', description: '清洁 +15 · 心情 +8', effects: { cleanliness: 15, mood: 8, affection: 4 } },
+  { id: 'bath', name: '洗澡', icon: 'bath', description: '清洁 +35 · 精力 −8', effects: { cleanliness: 35, energy: -8, affection: 2 } },
+  { id: 'pet', name: '摸摸', icon: 'heart', description: '免费 · 心情 +6', effects: { mood: 6, affection: 2 } },
+  { id: 'snack', name: '小鱼干', icon: 'fish', description: '小鱼干 ×1 · 好感 +6', cost: 'treat', effects: { food: 12, mood: 15, affection: 6 } },
+]
+
+export const SHOP_ITEMS = [
+  { id: 'food', name: '元气猫粮', subtitle: '一碗好好吃饭的小确幸', price: 12, quantity: 3, icon: 'fish', category: 'food', color: '#eedbb7' },
+  { id: 'treat', name: '香香小鱼干', subtitle: '给乖乖小咪的一点奖励', price: 16, quantity: 2, icon: 'fish', category: 'food', color: '#f0d1b5' },
+  { id: 'ribbon', name: '莓果蝴蝶结', subtitle: '今天也要漂亮地晒太阳', price: 45, quantity: 1, icon: 'ribbon', category: 'outfit', color: '#e6b9bc' },
+  { id: 'scarf', name: '薄荷小围巾', subtitle: '把春天轻轻围在脖子上', price: 55, quantity: 1, icon: 'shirt', category: 'outfit', color: '#b8cbc0' },
+] as const
+
+export const ACTIVITIES = [
+  { id: 'work', name: '专心工作', description: '你认真生活，我认真陪你', icon: 'briefcase', color: '#83937d' },
+  { id: 'sleep', name: '一起小憩', description: '让世界先安静一小会儿', icon: 'moon', color: '#aaa1bc' },
+  { id: 'relax', name: '放空一下', description: '什么都不做，也很美好', icon: 'coffee', color: '#c7a88b' },
+  { id: 'exercise', name: '动一动', description: '伸个懒腰，和小咪一起', icon: 'activity', color: '#a9b69b' },
+  { id: 'watch', name: '窝着看剧', description: '沙发留了一个你的位置', icon: 'tv', color: '#c3a6a1' },
+] as const
+export type Activity = typeof ACTIVITIES[number]['id']
+
+export const PROFESSIONS: { id: Profession; name: string; description: string; icon: string }[] = [
+  { id: 'programmer', name: '程序员', description: '解开三个小小的代码谜题', icon: 'code' },
+  { id: 'writer', name: '作家', description: '把今天的温柔写进故事里', icon: 'pen' },
+  { id: 'painter', name: '画家', description: '用像素画一只软乎乎的小咪', icon: 'palette' },
+]
+
+export interface EventChoice { text: string; response: string; effects: Partial<Record<CatStat, number>> }
+export interface EventDefinition { id: string; title: string; text: string; personality?: Personality; minCats: number; choices: EventChoice[] }
+export const RANDOM_EVENTS: EventDefinition[] = [
+  { id: 'little-hug', title: '可以再靠近一点吗', text: '小咪把脑袋挤到你的手底下，发出小小的呼噜声。', personality: 'clingy', minCats: 1, choices: [
+    { text: '放下事情，抱一会儿', response: '它把自己团成一团，安心地窝在你怀里。', effects: { affection: 8, mood: 10 } },
+    { text: '轻轻摸摸，等忙完再来', response: '它乖乖趴下，陪你把手头的事情做完。', effects: { affection: 3 } },
+  ] },
+  { id: 'window-detective', title: '窗边的小侦探', text: '窗外的小鸟让小咪看入了迷，尾巴尖一下一下地动。', personality: 'curious', minCats: 1, choices: [
+    { text: '一起观察一会儿', response: '你们一起看完了小鸟的午后演出。', effects: { affection: 6, mood: 12 } },
+    { text: '抱它离开窗边', response: '它有点失望，回头又看了一眼。', effects: { affection: -3, mood: -4 } },
+  ] },
+  { id: 'secret-tail', title: '尾巴出卖了心事', text: '小咪背对你坐下，尾巴却悄悄绕住了你的手。', personality: 'proud', minCats: 1, choices: [
+    { text: '假装没发现，轻轻陪着', response: '它往你身边又挪了两厘米。', effects: { affection: 7 } },
+    { text: '突然抱进怀里', response: '它挣脱了怀抱，但并没有走远。', effects: { affection: -3, mood: -3 } },
+  ] },
+  { id: 'cardboard-castle', title: '纸箱里的小城堡', text: '纸箱里露出一双眼睛，小咪好像还没有准备好出来。', personality: 'shy', minCats: 1, choices: [
+    { text: '放一条软毯在旁边', response: '过了一会儿，一只小爪子悄悄伸到了毯子上。', effects: { affection: 6, mood: 8 } },
+    { text: '把它直接抱出来', response: '它有些不安，决定先回自己的小城堡。', effects: { affection: -3 } },
+  ] },
+  { id: 'paper-ball', title: '一个纸团，两只小咪', text: '两只小咪同时按住同一个纸团，谁也不肯先松爪。', minCats: 2, choices: [
+    { text: '再揉一个纸团', response: '现在每只小咪都有自己的小小快乐。', effects: { affection: 5, mood: 8 } },
+    { text: '陪它们轮流玩', response: '小咪们慢慢学会了等待彼此。', effects: { affection: 3, energy: -2 } },
+  ] },
+  { id: 'sunbeam-nap', title: '阳光刚好够两只', text: '午后，两只小咪试探着挤进同一张小毯子。', minCats: 2, choices: [
+    { text: '把毯子铺大一点', response: '两颗毛茸茸的小脑袋，挨在了一起。', effects: { affection: 6, energy: 10 } },
+    { text: '各放一个软垫', response: '它们各自找到了舒服的位置，隔空眨了眨眼。', effects: { affection: 2, energy: 8 } },
+  ] },
+]
+
+export const ENCOUNTER_SOURCES = [
+  { id: 'friend', title: '朋友带来了一位小客人', text: '朋友想给这只小猫找一个温暖的家，它正小心地望着你。', price: 0, weights: [4, 2, 2, 2] },
+  { id: 'street', title: '回家路上的小小相遇', text: '一只小猫轻轻蹭了蹭你的裤脚，好像已经认识你很久。', price: 0, weights: [5, 1, 3, 1] },
+  { id: 'neighbor', title: '邻居的温柔托付', text: '邻居即将搬家，希望这只陪了自己很久的小猫能继续被好好照顾。', price: 0, weights: [2, 4, 1, 3] },
+  { id: 'shelter', title: '领养站里的一次对视', text: '在许多小小的身影里，有一双眼睛安静地看着你。', price: 0, weights: [2, 1, 2, 5] },
+  { id: 'seller', title: '街角纸箱里的小猫', text: '街角有人为一只小猫寻找新主人，收取 20 枚金币。小猫从纸箱边探出了脑袋。你可以带它回家，也可以先照顾好家里的小咪。', price: 20, weights: [1, 2, 3, 4] },
+] as const
+
+export const PROGRAMMING_QUESTIONS = [
+  { id: 'map', prompt: '让数组中的每一个数字翻倍', code: 'const doubled = [1, 2, 3].____(n => n * 2)', options: ['map', 'filter', 'find', 'join'], answer: 'map', explanation: 'map 会把每个元素转换后，组成一个新数组。' },
+  { id: 'array', prompt: '判断一个值是否为数组', code: 'Array.____([1, 2, 3]) // true', options: ['isArray', 'isObject', 'from', 'includes'], answer: 'isArray', explanation: 'Array.isArray 可以直接判断一个值是不是数组。' },
+  { id: 'promise', prompt: '等待多个异步任务全部完成', code: 'await Promise.____([taskA, taskB])', options: ['all', 'race', 'resolve', 'reject'], answer: 'all', explanation: 'Promise.all 会等待所有任务成功，并收集结果。' },
+  { id: 'const', prompt: '声明一个不需要重新赋值的变量', code: '____ catName = "小咪"', options: ['const', 'return', 'import', 'await'], answer: 'const', explanation: 'const 声明的变量不能被重新赋值。' },
+  { id: 'filter', prompt: '留下已经吃饱的小猫', code: 'cats.____(cat => cat.food >= 80)', options: ['filter', 'reduce', 'push', 'pop'], answer: 'filter', explanation: 'filter 会保留满足条件的数组元素。' },
+  { id: 'optional', prompt: '安全读取可能还不存在的猫咪名字', code: 'const name = cat____name', options: ['?.', '&&', '??', '=>'], answer: '?.', explanation: '可选链 ?. 在对象为空时返回 undefined。' },
+] as const
+
+export const WRITING_TOPIC = { id: 'rainy-cat', title: '雨天，和小咪待在一起', prompt: '写一段至少 30 字的小故事，让雨天、猫咪与陪伴出现在你的文字里。', groups: [['雨', '水滴', '阴天'], ['猫', '小咪', '毛茸茸'], ['陪伴', '温暖', '安心', '拥抱']] }
+export const PAINT_COLORS = ['transparent', '#d6a06c', '#f0d1aa', '#5a4b40', '#d99998'] as const
+export const PAINTING_REFERENCE = [
+  0, 1, 0, 0, 0, 0, 1, 0,
+  0, 1, 1, 0, 0, 1, 1, 0,
+  0, 1, 2, 1, 1, 2, 1, 0,
+  1, 2, 2, 2, 2, 2, 2, 1,
+  1, 2, 3, 2, 2, 3, 2, 1,
+  1, 2, 4, 2, 2, 4, 2, 1,
+  0, 1, 2, 3, 3, 2, 1, 0,
+  0, 0, 1, 1, 1, 1, 0, 0,
+]
+
+export const REMINDERS = [
+  { id: 'water', title: '喝口水吧', text: '小咪把水杯往你这边推了推，记得照顾自己。', minutes: 30 },
+  { id: 'stretch', title: '一起伸个懒腰', text: '肩膀放松一点，跟小咪一起活动一下吧。', minutes: 45 },
+  { id: 'eyes', title: '看一看远处', text: '离开屏幕片刻，小咪会在这里等你回来。', minutes: 60 },
+] as const
+
+export const STORAGE_KEY = 'miaomi.save.v1'
+export const ADOPTION_PRICE = 120
+export const MAX_CATS = 4

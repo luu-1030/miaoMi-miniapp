@@ -1,0 +1,41 @@
+<template>
+  <view class="room" :class="roomClass">
+    <view class="window"><view class="window-cross horizontal"/><view class="window-cross vertical"/><view class="sun"/><view class="cloud"/></view>
+    <text class="room-note">{{ away ? '把熟悉的小毯子带上吧' : '阳光、呼噜声，还有你' }}</text>
+    <view class="plant"><view class="leaf leaf-one"/><view class="leaf leaf-two"/><view class="plant-pot"/></view>
+    <view class="floor"/>
+    <view class="rug"/>
+    <button class="cat-button" :class="[breed, pose, away ? 'away' : '']" :aria-label="away ? '小咪出门了' : '摸摸小咪'" :disabled="away" @click="emit('pet')">
+      <view class="tail" :style="{ backgroundColor: coat }"/>
+      <view class="cat-body" :style="{ backgroundColor: coat }"><view class="chest"/><view class="paw left-paw"/><view class="paw right-paw"/></view>
+      <view class="cat-head" :style="{ backgroundColor: coat }">
+        <view class="ear left-ear" :style="{ backgroundColor: coat }"><view class="ear-inner"/></view>
+        <view class="ear right-ear" :style="{ backgroundColor: coat }"><view class="ear-inner"/></view>
+        <view class="stripe stripe-one"/><view class="stripe stripe-two"/><view class="stripe stripe-three"/>
+        <view class="face"><view class="eye left-eye"/><view class="eye right-eye"/><view class="muzzle"/><view class="nose"/><view class="mouth"/><view class="cheek left-cheek"/><view class="cheek right-cheek"/></view>
+      </view>
+      <view v-if="outfit == 'ribbon'" class="ribbon"><view class="ribbon-left"/><view class="ribbon-right"/><view class="ribbon-center"/></view>
+      <view v-if="outfit == 'scarf'" class="scarf"><view class="scarf-end"/></view>
+      <text v-if="pose == 'sleepy' && !away" class="sleep-mark">z z Z</text>
+    </button>
+    <view class="bowl"><text class="bowl-mark">♥</text></view>
+    <text class="tap-note">{{ away ? '门口的小脚印，还等着你' : '轻轻点一下，摸摸它' }}</text>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { computed } from 'vue'
+const props = defineProps({
+  breed: { type: String, default: 'orange' },
+  pose: { type: String, default: 'calm' },
+  outfit: { type: String, default: '' },
+  away: { type: Boolean, default: false },
+})
+const emit = defineEmits(['pet'])
+const coat = computed(() => ({ orange: '#e4a363', ragdoll: '#e8d8c3', british: '#97a7b2', calico: '#e7ba8a', tuxedo: '#62686a' }[props.breed] || '#e4a363'))
+const roomClass = computed(() => props.away ? 'room-away' : '')
+</script>
+
+<style scoped>
+.room{position:relative;height:295px;background:#f5eddc;border-radius:22px;overflow:hidden;isolation:isolate}.window{position:absolute;right:25px;top:25px;width:105px;height:112px;background:#e2ebdf;border:7px solid #fffaf0;border-radius:50px 50px 4px 4px;overflow:hidden}.window-cross{position:absolute;background:#fffaf0;z-index:2}.horizontal{width:100%;height:5px;top:55%}.vertical{height:100%;width:5px;left:48%}.sun{position:absolute;top:15px;right:15px;width:29px;height:29px;border-radius:50%;background:#f2dca5}.cloud{position:absolute;bottom:15px;left:8px;width:52px;height:20px;border-radius:30px;background:#f7f8ed}.room-note{position:absolute;left:20px;top:25px;color:#a39778;font-size:11px;letter-spacing:1px;width:105px;line-height:20px}.floor{position:absolute;bottom:0;width:100%;height:100px;background:#eae0ca;border-top:3px solid #d9ccb0}.rug{position:absolute;left:14%;bottom:28px;width:72%;height:70px;border:4px solid #d4c7ab;border-radius:50%;background:#ddd2b6}.plant{position:absolute;left:24px;bottom:82px;width:48px;height:72px}.plant-pot{position:absolute;bottom:0;left:8px;width:34px;height:30px;background:#c6a181;border-radius:3px 3px 12px 12px}.leaf{position:absolute;width:18px;height:42px;background:#9daa82;border-radius:80% 10% 80% 10%;bottom:22px}.leaf-one{left:10px;transform:rotate(-32deg)}.leaf-two{left:26px;transform:rotate(22deg)}.cat-button{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);width:190px;height:180px;overflow:visible;margin:0;padding:0;background:transparent;border:0;line-height:normal}.cat-button::after{border:0}.cat-body{position:absolute;left:53px;bottom:8px;width:92px;height:94px;border-radius:45% 45% 32% 32%;z-index:2}.chest{position:absolute;left:25px;top:23px;width:48px;height:60px;background:#f1d3a5;border-radius:50%;opacity:.8}.cat-head{position:absolute;left:40px;top:23px;width:110px;height:91px;border-radius:44% 44% 46% 46%;z-index:3}.ear{position:absolute;top:-16px;width:37px;height:49px;border-radius:8px 24px 5px 5px;z-index:-1}.left-ear{left:3px;transform:rotate(-12deg)}.right-ear{right:3px;transform:rotate(12deg);border-radius:24px 8px 5px 5px}.ear-inner{position:absolute;top:9px;left:9px;width:20px;height:28px;background:#dba799;border-radius:5px 10px 4px 4px}.face{position:absolute;inset:0}.eye{position:absolute;top:42px;width:8px;height:12px;border-radius:50%;background:#564c42}.left-eye{left:27px}.right-eye{right:27px}.muzzle{position:absolute;left:32px;top:55px;width:47px;height:25px;background:#f7e3bd;border-radius:50%}.nose{position:absolute;left:51px;top:57px;width:9px;height:6px;background:#ba8071;border-radius:50% 50% 70% 70%}.mouth{position:absolute;left:52px;top:63px;width:7px;height:8px;border-bottom:1px solid #8a6e57;border-left:1px solid #8a6e57;transform:rotate(-45deg);border-radius:0 0 0 4px}.cheek{position:absolute;top:59px;width:14px;height:6px;border-radius:50%;background:#d89080;opacity:.55}.left-cheek{left:14px}.right-cheek{right:14px}.paw{position:absolute;bottom:-2px;width:29px;height:16px;background:#f0c58f;border-radius:12px}.left-paw{left:7px}.right-paw{right:7px}.tail{position:absolute;right:6px;bottom:13px;width:55px;height:22px;border-radius:0 20px 20px 0;transform-origin:left center;transform:rotate(-28deg);animation:tail-sway 4s ease-in-out infinite}.stripe{position:absolute;top:1px;width:6px;height:20px;border-radius:0 0 7px 7px;background:#c88750;opacity:.6}.stripe-one{left:37px;transform:rotate(-12deg)}.stripe-two{left:51px;height:24px}.stripe-three{left:65px;transform:rotate(12deg)}.ragdoll .stripe,.british .stripe,.tuxedo .stripe{display:none}.ragdoll .face{background:#b7a79c;border-radius:45%;margin:19px 12px 5px}.ragdoll .eye{top:26px;background:#6998a7}.ragdoll .left-eye{left:15px}.ragdoll .right-eye{right:15px}.ragdoll .muzzle{left:20px;top:38px}.ragdoll .nose{left:39px;top:40px}.ragdoll .mouth{left:40px;top:46px}.ragdoll .cheek{display:none}.british .chest{background:#c5cdd0}.british .paw{background:#a8b6bd}.calico .cat-head{background:linear-gradient(120deg,#645c55 0 26%,#f2e4cd 26% 62%,#dfa163 62%)!important}.tuxedo .chest,.tuxedo .paw{background:#faf1de}.tuxedo .muzzle{height:39px;top:42px;border-radius:50% 50% 40% 40%}.tuxedo .eye{background:#ebd592}.bowl{position:absolute;right:22px;bottom:39px;width:39px;height:22px;background:#b3beac;border-radius:4px 4px 15px 15px;border-top:5px solid #8f9f84}.bowl-mark{display:block;font-size:9px;color:#f4f1df;text-align:center}.tap-note{position:absolute;bottom:12px;left:0;width:100%;text-align:center;color:#a39579;font-size:10px}.ribbon{position:absolute;left:81px;top:110px;z-index:4;display:flex;align-items:center}.ribbon-left,.ribbon-right{width:17px;height:20px;background:#bd7d81;border-radius:4px 10px 10px 4px}.ribbon-right{transform:rotate(180deg)}.ribbon-center{position:absolute;left:13px;width:8px;height:10px;background:#d6a1a1;border-radius:4px}.scarf{position:absolute;left:63px;top:106px;width:75px;height:13px;background:#98b6a7;border-radius:7px;z-index:4}.scarf-end{position:absolute;top:9px;left:10px;width:16px;height:28px;background:#8ba99a;border-radius:0 0 4px 4px}.sleep-mark{position:absolute;right:0;top:17px;color:#a49782;font-size:17px;letter-spacing:5px}.sleepy .eye{height:3px;top:47px;border-radius:5px}.curious .cat-head{transform:rotate(-8deg)}.shy{transform:translateX(-50%) scale(.92)}.shy .cat-head{top:30px}.proud .cat-head{transform:rotate(8deg)}.proud .face{transform:translateX(8px)}.clingy .cat-head{animation:head-bob 4s ease-in-out infinite}.away{opacity:.18}.room-away .tail{animation:none}@keyframes tail-sway{0%,100%{transform:rotate(-28deg)}50%{transform:rotate(-5deg)}}@keyframes head-bob{0%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}@media(prefers-reduced-motion:reduce){.tail,.clingy .cat-head{animation:none}}
+</style>

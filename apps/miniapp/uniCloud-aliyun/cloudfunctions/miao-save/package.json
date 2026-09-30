@@ -1,0 +1,7 @@
+{
+  "name": "miao-save",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": { "miao-auth": "file:../common/miao-auth", "miao-game": "file:../common/miao-game" }
+}

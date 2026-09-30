@@ -1,0 +1,15 @@
+{
+  "name": "小咪小咪",
+  "appid": "",
+  "description": "miaoMi · 和小猫一起，把日子过得软一点",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "uni-app-x": {
+    "vapor": true
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": { "urlCheck": true },
+    "usingComponents": true
+  }
+}

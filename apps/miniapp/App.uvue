@@ -1,0 +1,13 @@
+<script lang="uts">
+export default {
+  onLaunch() {
+    // Game state and foreground timers belong to the main page lifecycle.
+  }
+}
+</script>
+
+<style>
+page { height: 100%; background-color: #f7f5ee; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+view, text, button, input, textarea { box-sizing: border-box; }
+button::after { border: none; }
+</style>

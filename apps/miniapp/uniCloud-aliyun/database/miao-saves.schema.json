@@ -1,0 +1,11 @@
+{
+  "bsonType": "object",
+  "required": ["_id", "state", "revision", "updated_at"],
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "properties": {
+    "_id": { "bsonType": "string", "description": "服务端根据微信应用及 openid 派生的用户 ID" },
+    "state": { "bsonType": "object", "description": "miao-auth 校验并筛选字段后的完整游戏存档" },
+    "revision": { "bsonType": "int", "minimum": 1, "description": "乐观锁版本，防止多设备相互覆盖" },
+    "updated_at": { "bsonType": "long", "description": "服务端毫秒时间戳" }
+  }
+}
